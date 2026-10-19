@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>讀書小監工</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:"Microsoft JhengHei",sans-serif;background:#f5f7fb;color:#222}
+.wrap{width:min(1200px,94%);margin:28px auto}.top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+h1{margin:0 0 6px}.muted{color:#707789}.grid{display:grid;grid-template-columns:340px 1fr;gap:16px;margin-top:18px}
+.card{background:#fff;border:1px solid #e4e7ef;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 6px 20px #2b355010}
+.card h2{margin:0 0 12px;font-size:1.05rem}.field{margin:9px 0}.field label{display:block;font-size:.84rem;font-weight:700;margin-bottom:5px}
+input,select,textarea,button{font:inherit}input,select,textarea{width:100%;padding:9px;border:1px solid #dce1ea;border-radius:8px}
+textarea{min-height:90px}.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.week{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}.week div{text-align:center}.week span{font-size:.75rem;color:#777}.week input{text-align:center;padding:7px 2px}
+button{border:0;border-radius:8px;padding:9px 12px;font-weight:700;cursor:pointer}.primary{background:#596bd9;color:#fff}.soft{background:#edf0ff;color:#4252af}.danger{background:#fff0f0;color:#a13d3d}.full{width:100%}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}.stat{background:#fff;border:1px solid #e4e7ef;border-radius:12px;padding:13px}.stat small{color:#777}.stat b{display:block;margin-top:5px;font-size:1.25rem}
+.toolbar{display:flex;justify-content:space-between;align-items:center}.toolbar button{background:#f0f2f7;width:36px}.weekdays,.calendar{display:grid;grid-template-columns:repeat(7,1fr)}.weekdays div{text-align:center;padding:8px;color:#777;font-size:.82rem}
+.calendar{gap:1px;background:#e3e6ed}.day{min-height:125px;background:#fff;padding:6px}.day.other{background:#fafbfc;color:#aaa}.day.today{box-shadow:inset 0 0 0 2px #8b96e8}
+.date{display:flex;justify-content:space-between;font-size:.78rem;font-weight:800}.hours{font-size:.68rem;color:#777}.hours.over{color:#b33}
+.item{font-size:.69rem;padding:4px 5px;border-radius:6px;margin:4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.study{background:#dce8ff;color:#31579b}.homework{background:#eee3ff;color:#6b45a0}.deadline{background:#ffe2e2;color:#a03737;font-weight:800}.override{background:#eceff3;color:#555}
+.planrow{display:grid;grid-template-columns:1.3fr .5fr 1fr auto;gap:7px;align-items:end}.summary{display:flex;gap:14px;flex-wrap:wrap;font-weight:700;margin-bottom:8px}.alloc{display:flex;justify-content:space-between;gap:8px;border:1px solid #e6e9f0;border-radius:8px;padding:8px;margin-top:7px}.alloc button{border:0;border-radius:7px;padding:6px 9px;margin-left:4px}.edit-plan,.edit-override{background:#edf0ff;color:#4252af}.delete-plan,.delete-event,.delete-override{background:#fff0f0;color:#a13d3d}
+.event{border:1px solid #e4e7ef;border-radius:10px;padding:11px;margin-top:9px}.meta{font-size:.82rem;color:#707789;margin-top:3px}.chips{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}.chip{font-size:.72rem;background:#f0f2f7;border-radius:999px;padding:3px 7px;font-weight:700}
+.scope{display:flex;gap:7px;align-items:center;background:#fafbfe;border:1px solid #edf0f5;border-radius:7px;padding:7px;margin-top:5px;font-size:.82rem}.scope input{width:auto}
+.progress{height:7px;background:#edf0f5;border-radius:99px;margin-top:7px;overflow:hidden}.progress div{height:100%;background:#596bd9}
+.reminder{background:#fff7d8;border:1px solid #f0dfa1;color:#715d00;border-radius:8px;padding:9px;margin-top:7px;font-size:.82rem}.empty{text-align:center;color:#777;padding:15px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}.planrow{grid-template-columns:1fr 1fr}.planrow .wide{grid-column:1/-1}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="top">
+  <div><h1>📚 讀書小監工</h1><div class="muted">時間你自己排，系統幫你檢查每天容量、截止日與進度。</div></div>
+  <div><button class="soft" id="demo">載入示範</button> <button class="danger" id="clear">清除全部</button></div>
+</div>
+
+<div class="stats">
+  <div class="stat"><small>每週固定可用</small><b id="weeklyTotal">0 小時</b></div>
+  <div class="stat"><small>本週已安排</small><b id="weekPlanned">0 小時</b></div>
+  <div class="stat"><small>未完成事項</small><b id="activeCount">0 件</b></div>
+  <div class="stat"><small>最近截止</small><b id="nearest">尚無</b></div>
+</div>
+
+<div class="grid">
+<aside>
+  <div class="card">
+    <h2>① 每週固定可用時間</h2>
+    <div class="week" id="weekBox">
+      <div><span>一</span><input data-day="1" type="number" min="0" step=".5"></div>
+      <div><span>二</span><input data-day="2" type="number" min="0" step=".5"></div>
+      <div><span>三</span><input data-day="3" type="number" min="0" step=".5"></div>
+      <div><span>四</span><input data-day="4" type="number" min="0" step=".5"></div>
+      <div><span>五</span><input data-day="5" type="number" min="0" step=".5"></div>
+      <div><span>六</span><input data-day="6" type="number" min="0" step=".5"></div>
+      <div><span>日</span><input data-day="0" type="number" min="0" step=".5"></div>
+    </div>
+    <button class="primary full" id="saveWeek" style="margin-top:10px">儲存</button>
+  </div>
+
+  <div class="card">
+    <h2>② 新增考試／作業</h2>
+    <div class="two">
+      <div class="field"><label>類型</label><select id="etype"><option value="exam">考試</option><option value="homework">作業</option></select></div>
+      <div class="field"><label>日期</label><input id="edate" type="date"></div>
+    </div>
+    <div class="field"><label>名稱</label><input id="ename" placeholder="例如：數統期中考"></div>
+    <div class="two">
+      <div class="field"><label>重要程度</label><select id="importance"><option value="high">高</option><option value="medium" selected>中</option><option value="low">低</option></select></div>
+      <div class="field"><label>難易度</label><select id="difficulty"><option value="hard">難</option><option value="normal" selected>普通</option><option value="easy">簡單</option></select></div>
+    </div>
+    <div class="field"><label>範圍（一行一個）</label><textarea id="scopes" placeholder="上課內容&#10;上次期中考內容&#10;上學期數統一複習"></textarea></div>
+    <button class="primary full" id="addEvent">加入事項</button>
+  </div>
+
+  <div class="card">
+    <h2>③ 某一天時間和平常不同</h2>
+    <div class="two">
+      <div class="field"><label>日期</label><input id="odate" type="date"></div>
+      <div class="field"><label>當天可用時間</label><input id="ohours" type="number" min="0" step=".5"></div>
+    </div>
+    <div class="field"><label>備註</label><input id="onote" placeholder="例如：晚上聚餐"></div>
+    <button class="soft full" id="saveOverride">儲存這一天</button>
+  </div>
+</aside>
+
+<main>
+  <div class="card">
+    <div class="toolbar"><h2 id="monthTitle" style="margin:0"></h2><div><button id="prev">‹</button> <button id="today">今</button> <button id="next">›</button></div></div>
+    <div class="weekdays"><div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div></div>
+    <div class="calendar" id="calendar"></div>
+  </div>
+
+  <div class="card">
+    <h2>④ 自己安排某一天</h2>
+    <div class="field"><label>日期</label><input id="planDate" type="date"></div>
+    <div class="summary"><span id="cap"></span><span id="used"></span><span id="left"></span></div>
+    <div class="planrow">
+      <div class="field wide"><label>考試／作業</label><select id="planEvent"></select></div>
+      <div class="field"><label>時間</label><input id="planHours" type="number" min=".5" step=".5" value="1"></div>
+      <div class="field wide">
+  <label>今天要做的內容</label>
+  <select id="planNote">
+    <option value="">請先選擇考試／作業</option>
+  </select>
+</div>
+      <button class="primary" id="addPlan">加入</button>
+    </div>
+    <div id="planList"></div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h2>目前的考試／作業</h2>
+      <div id="eventList"></div>
+    </div>
+    <div class="card">
+      <h2>監工提醒</h2>
+      <div id="reminders"></div>
+      <h2 style="margin-top:16px">單日時間調整</h2>
+      <div id="overrideList"></div>
+    </div>
+  </div>
+</main>
+</div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = (id) => document.getElementById(id);
+
+  const el = {
+    weeklyTotal: $("weeklyTotal"),
+    weekPlanned: $("weekPlanned"),
+    activeCount: $("activeCount"),
+    nearest: $("nearest"),
+    weekBox: $("weekBox"),
+    saveWeek: $("saveWeek"),
+    etype: $("etype"),
+    edate: $("edate"),
+    ename: $("ename"),
+    importance: $("importance"),
+    difficulty: $("difficulty"),
+    scopes: $("scopes"),
+    addEvent: $("addEvent"),
+    odate: $("odate"),
+    ohours: $("ohours"),
+    onote: $("onote"),
+    saveOverride: $("saveOverride"),
+    monthTitle: $("monthTitle"),
+    prev: $("prev"),
+    today: $("today"),
+    next: $("next"),
+    calendar: $("calendar"),
+    planDate: $("planDate"),
+    cap: $("cap"),
+    used: $("used"),
+    left: $("left"),
+    planEvent: $("planEvent"),
+    planHours: $("planHours"),
+    planNote: $("planNote"),
+    addPlan: $("addPlan"),
+    planList: $("planList"),
+    eventList: $("eventList"),
+    reminders: $("reminders"),
+    overrideList: $("overrideList"),
+    demo: $("demo"),
+    clear: $("clear"),
+  };
+
+  const KEY = "studySupervisorManualV4";
+  const base = {
+    weekly: {0:4,1:2,2:3,3:2,4:4,5:4,6:5},
+    events: [],
+    overrides: {},
+    plans: {}
+  };
+
+  const T = {exam:"考試", homework:"作業"};
+  const I = {high:"高", medium:"中", low:"低"};
+  const D = {hard:"難", normal:"普通", easy:"簡單"};
+
+  const clone = (x) => JSON.parse(JSON.stringify(x));
+
+  let state;
+  try {
+    state = JSON.parse(localStorage.getItem(KEY)) || clone(base);
+  } catch {
+    state = clone(base);
+  }
+
+  let view = new Date();
+  view.setDate(1);
+
+  function save() {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  }
+
+  function uid() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    return String(Date.now()) + String(Math.random()).slice(2);
+  }
+
+  function dateKey(d) {
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  }
+
+  function parseDate(s) {
+    const [y,m,d] = s.split("-").map(Number);
+    return new Date(y, m-1, d);
+  }
+
+  function addDays(d,n) {
+    const x = new Date(d);
+    x.setDate(x.getDate()+n);
+    return x;
+  }
+
+  function shortDate(s) {
+    const d = parseDate(s);
+    return `${d.getMonth()+1}/${d.getDate()}`;
+  }
+
+  function escapeHtml(t) {
+    const x = document.createElement("div");
+    x.textContent = t ?? "";
+    return x.innerHTML;
+  }
+
+  function progress(event) {
+    if (!event.scopes.length) return 0;
+    const done = event.scopes.filter(s => s.done).length;
+    return Math.round(done / event.scopes.length * 100);
+  }
+
+  function activeEvents() {
+    return state.events.filter(e => progress(e) < 100);
+  }
+
+  function available(dateString) {
+    const d = parseDate(dateString);
+    if (Object.prototype.hasOwnProperty.call(state.overrides, dateString)) {
+      return Number(state.overrides[dateString].hours || 0);
+    }
+    return Number(state.weekly[d.getDay()] || 0);
+  }
+
+  function allocated(dateString) {
+    return (state.plans[dateString] || []).reduce((sum,p) => sum + Number(p.hours || 0), 0);
+  }
+
+  function render() {
+    document.querySelectorAll("#weekBox input").forEach(input => {
+      input.value = state.weekly[input.dataset.day] ?? 0;
+    });
+
+    renderStats();
+    renderCalendar();
+    renderOptions();
+    renderPlan();
+    renderEvents();
+    renderReminders();
+    renderOverrides();
+  }
+
+  function renderStats() {
+    el.weeklyTotal.textContent =
+      Object.values(state.weekly).reduce((a,b) => a + Number(b || 0), 0) + " 小時";
+
+    el.activeCount.textContent = activeEvents().length + " 件";
+
+    const now = new Date();
+    const dow = now.getDay();
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + (dow === 0 ? -6 : 1 - dow));
+    monday.setHours(0,0,0,0);
+
+    let sum = 0;
+    for (let i=0; i<7; i++) {
+      sum += allocated(dateKey(addDays(monday,i)));
+    }
+    el.weekPlanned.textContent = sum.toFixed(1) + " 小時";
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const upcoming = activeEvents()
+      .filter(e => parseDate(e.date) >= today)
+      .sort((a,b) => parseDate(a.date) - parseDate(b.date));
+
+    el.nearest.textContent =
+      upcoming.length ? `${shortDate(upcoming[0].date)} ${upcoming[0].name}` : "尚無";
+  }
+
+  function renderCalendar() {
+    el.monthTitle.textContent = `${view.getFullYear()} 年 ${view.getMonth()+1} 月`;
+    el.calendar.innerHTML = "";
+
+    const first = new Date(view.getFullYear(), view.getMonth(), 1);
+    const start = addDays(first, -first.getDay());
+    const todayK = dateKey(new Date());
+
+    for (let i=0; i<42; i++) {
+      const d = addDays(start,i);
+      const k = dateKey(d);
+      const a = available(k);
+      const u = allocated(k);
+
+      const box = document.createElement("div");
+      box.className =
+        "day" +
+        (d.getMonth() !== view.getMonth() ? " other" : "") +
+        (k === todayK ? " today" : "");
+
+      box.innerHTML =
+        `<div class="date">
+          <span>${d.getDate()}</span>
+          <span class="hours ${u>a ? "over" : ""}">${u.toFixed(1)}/${a.toFixed(1)}h</span>
+        </div>`;
+
+      (state.plans[k] || []).forEach(p => {
+        const e = state.events.find(x => x.id === p.eventId);
+        if (!e) return;
+
+        const item = document.createElement("div");
+        item.className = "item " + (e.type === "homework" ? "homework" : "study");
+        item.title = `${e.name}｜${Number(p.hours).toFixed(1)}h${p.note ? "｜"+p.note : ""}`;
+        item.textContent =
+          `${e.type === "homework" ? "📝" : "📘"} ${e.name} ${Number(p.hours).toFixed(1)}h`;
+        box.appendChild(item);
+      });
+
+      state.events.filter(e => e.date === k).forEach(e => {
+        const item = document.createElement("div");
+        item.className = "item deadline";
+        item.textContent = `🔴 ${e.name} ${e.type === "exam" ? "考試" : "截止"}`;
+        box.appendChild(item);
+      });
+
+      if (state.overrides[k]) {
+        const item = document.createElement("div");
+        item.className = "item override";
+        item.textContent = `⚪ 當天改 ${Number(state.overrides[k].hours).toFixed(1)}h`;
+        box.appendChild(item);
+      }
+
+      el.calendar.appendChild(box);
+    }
+  }
+
+  function renderOptions() {
+    const events = activeEvents().sort((a,b) => parseDate(a.date)-parseDate(b.date));
+    el.planEvent.innerHTML = events.length
+      ? events.map(e =>
+          `<option value="${e.id}">${escapeHtml(e.name)}｜${T[e.type]}｜${shortDate(e.date)}</option>`
+        ).join("")
+      : `<option value="">沒有可排事項</option>`;
+
+    renderScopeOptions();
+  }
+
+  function renderScopeOptions() {
+    const eventId = el.planEvent.value;
+    const event = state.events.find(e => e.id === eventId);
+
+    if (!event) {
+      el.planNote.innerHTML = `<option value="">請先選擇考試／作業</option>`;
+      return;
+    }
+
+    const unfinished = event.scopes.filter(s => !s.done);
+
+    if (!unfinished.length) {
+      el.planNote.innerHTML = `<option value="">全部範圍都已完成</option>`;
+      return;
+    }
+
+    el.planNote.innerHTML = unfinished
+      .map(s => `<option value="${escapeHtml(s.text)}">${escapeHtml(s.text)}</option>`)
+      .join("");
+  }
+
+  function renderPlan() {
+    if (!el.planDate.value) el.planDate.value = dateKey(new Date());
+
+    const d = el.planDate.value;
+    const a = available(d);
+    const u = allocated(d);
+    const l = a-u;
+
+    el.cap.textContent = `可用：${a.toFixed(1)} 小時`;
+    el.used.textContent = `已排：${u.toFixed(1)} 小時`;
+    el.left.textContent = `剩餘：${l.toFixed(1)} 小時`;
+    el.left.style.color = l < 0 ? "#b33" : l === 0 ? "#287443" : "#8a6a00";
+
+    const plans = state.plans[d] || [];
+    if (!plans.length) {
+      el.planList.innerHTML = `<div class="empty">這一天還沒有安排。</div>`;
+      return;
+    }
+
+    el.planList.innerHTML = plans.map(p => {
+      const e = state.events.find(x => x.id === p.eventId);
+      return `
+        <div class="alloc">
+          <div>
+            <b>${escapeHtml(e ? e.name : "已刪除")}</b>
+            <div class="meta">${Number(p.hours).toFixed(1)} 小時${p.note ? "｜"+escapeHtml(p.note) : ""}</div>
+          </div>
+          <div>
+            <button class="edit-plan" data-date="${d}" data-id="${p.id}">修改</button>
+            <button class="delete-plan" data-date="${d}" data-id="${p.id}">刪除</button>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  function renderEvents() {
+    if (!state.events.length) {
+      el.eventList.innerHTML = `<div class="empty">還沒有考試或作業。</div>`;
+      return;
+    }
+
+    el.eventList.innerHTML = [...state.events]
+      .sort((a,b) => parseDate(a.date)-parseDate(b.date))
+      .map(e => {
+        const pc = progress(e);
+        const ph = Object.values(state.plans)
+          .flat()
+          .filter(p => p.eventId === e.id)
+          .reduce((s,p) => s + Number(p.hours || 0), 0);
+
+        return `
+          <div class="event">
+            <div>
+              <b>${escapeHtml(e.name)}</b>
+              <div class="meta">${shortDate(e.date)} ${e.type==="exam"?"考試":"截止"}｜目前已安排 ${ph.toFixed(1)} 小時</div>
+            </div>
+
+            <div class="chips">
+              <span class="chip">${T[e.type]}</span>
+              <span class="chip">重要：${I[e.importance]}</span>
+              <span class="chip">難度：${D[e.difficulty]}</span>
+            </div>
+
+            <div class="progress"><div style="width:${pc}%"></div></div>
+
+            ${e.scopes.map(s => `
+              <label class="scope">
+                <input type="checkbox"
+                       class="scope-toggle"
+                       data-event-id="${e.id}"
+                       data-scope-id="${s.id}"
+                       ${s.done ? "checked" : ""}>
+                <span style="${s.done ? "text-decoration:line-through;color:#999" : ""}">
+                  ${escapeHtml(s.text)}
+                </span>
+              </label>`
+            ).join("")}
+
+            <div>
+              <button class="edit-event" data-id="${e.id}">修改事項</button>
+              <button class="delete-event" data-id="${e.id}">刪除此項</button>
+            </div>
+          </div>`;
+      }).join("");
+  }
+
+  function renderReminders() {
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const warnings = [];
+
+    activeEvents().forEach(e => {
+      const due = parseDate(e.date);
+      const daysLeft = Math.ceil((due-today)/86400000);
+
+      const futureHours = Object.entries(state.plans)
+        .filter(([d]) => parseDate(d) >= today && parseDate(d) <= due)
+        .flatMap(([,arr]) => arr)
+        .filter(p => p.eventId === e.id)
+        .reduce((s,p) => s + Number(p.hours || 0), 0);
+
+      if (daysLeft >= 0 && daysLeft <= 7 && futureHours === 0) {
+        warnings.push(`${e.name} 剩 ${daysLeft} 天，但目前完全沒排時間。`);
+      }
+
+      if (e.importance === "high" && e.difficulty === "hard" && futureHours < 1) {
+        warnings.push(`${e.name} 是高重要＋難，目前安排偏少。`);
+      }
+    });
+
+    Object.keys(state.plans)
+      .filter(d => allocated(d) > available(d))
+      .forEach(d => {
+        warnings.push(
+          `${shortDate(d)} 排了 ${allocated(d).toFixed(1)} 小時，但只有 ${available(d).toFixed(1)} 小時可用。`
+        );
+      });
+
+    el.reminders.innerHTML = warnings.length
+      ? warnings.map(x => `<div class="reminder">⚠️ ${escapeHtml(x)}</div>`).join("")
+      : `<div class="empty">目前沒有明顯衝突。</div>`;
+  }
+
+  function renderOverrides() {
+    const entries = Object.entries(state.overrides)
+      .sort((a,b) => parseDate(a[0])-parseDate(b[0]));
+
+    if (!entries.length) {
+      el.overrideList.innerHTML = `<div class="empty">目前沒有調整。</div>`;
+      return;
+    }
+
+    el.overrideList.innerHTML = entries.map(([d,o]) => `
+      <div class="event">
+        <b>${shortDate(d)}｜${Number(o.hours).toFixed(1)} 小時</b>
+        <div class="meta">${escapeHtml(o.note || "無備註")}</div>
+        <button class="edit-override" data-date="${d}">修改</button>
+        <button class="delete-override" data-date="${d}">刪除</button>
+      </div>`
+    ).join("");
+  }
+
+  function editPlan(dateString, planId) {
+    const p = (state.plans[dateString] || []).find(x => x.id === planId);
+    if (!p) return;
+
+    const hText = window.prompt("請輸入新的時間（小時）", String(p.hours));
+    if (hText === null) return;
+
+    const h = Number(hText);
+    if (!Number.isFinite(h) || h <= 0) {
+      alert("時間必須是大於 0 的數字。");
+      return;
+    }
+
+    const note = window.prompt("今天要做的內容（可留空）", p.note || "");
+    if (note === null) return;
+
+    p.hours = h;
+    p.note = note.trim();
+    save();
+    render();
+  }
+
+  function editEvent(eventId) {
+    const e = state.events.find(x => x.id === eventId);
+    if (!e) return;
+
+    const newName = window.prompt("修改名稱", e.name);
+    if (newName === null) return;
+    if (!newName.trim()) {
+      alert("名稱不能空白。");
+      return;
+    }
+
+    const newDate = window.prompt("修改日期（YYYY-MM-DD）", e.date);
+    if (newDate === null) return;
+    if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(newDate)) {
+      alert("日期格式請輸入 YYYY-MM-DD。");
+      return;
+    }
+
+    e.name = newName.trim();
+    e.date = newDate;
+    save();
+    render();
+  }
+
+  // 固定週間時間
+  el.saveWeek.addEventListener("click", () => {
+    document.querySelectorAll("#weekBox input").forEach(input => {
+      state.weekly[input.dataset.day] = Math.max(0, Number(input.value || 0));
+    });
+    save();
+    render();
+  });
+
+  // 新增考試／作業
+  el.addEvent.addEventListener("click", () => {
+    const lines = el.scopes.value.split("\\n").map(x => x.trim()).filter(Boolean);
+
+    if (!el.ename.value.trim() || !el.edate.value) {
+      alert("請填名稱和日期。");
+      return;
+    }
+
+    if (!lines.length) {
+      alert("請至少輸入一個範圍。");
+      return;
+    }
+
+    state.events.push({
+      id: uid(),
+      type: el.etype.value,
+      name: el.ename.value.trim(),
+      date: el.edate.value,
+      importance: el.importance.value,
+      difficulty: el.difficulty.value,
+      scopes: lines.map(text => ({id:uid(), text, done:false}))
+    });
+
+    el.ename.value = "";
+    el.scopes.value = "";
+    save();
+    render();
+  });
+
+  // 單日可用時間
+  el.saveOverride.addEventListener("click", () => {
+    if (!el.odate.value || el.ohours.value === "") {
+      alert("請填日期和可用時間。");
+      return;
+    }
+
+    state.overrides[el.odate.value] = {
+      hours: Math.max(0, Number(el.ohours.value)),
+      note: el.onote.value.trim()
+    };
+
+    save();
+    render();
+  });
+
+  // 新增每日排程
+  el.addPlan.addEventListener("click", () => {
+    const d = el.planDate.value;
+    const eventId = el.planEvent.value;
+    const h = Number(el.planHours.value || 0);
+
+    if (!d || !eventId || !Number.isFinite(h) || h <= 0) {
+      alert("請選日期、事項和時間。");
+      return;
+    }
+
+    if (!state.plans[d]) state.plans[d] = [];
+
+    state.plans[d].push({
+      id: uid(),
+      eventId,
+      hours: h,
+      note: el.planNote.value
+    });
+
+    save();
+    render();
+  });
+
+  el.planDate.addEventListener("change", renderPlan);
+  el.planEvent.addEventListener("change", renderScopeOptions);
+
+  // 每日排程 修改／刪除
+  el.planList.addEventListener("click", (evt) => {
+    const editBtn = evt.target.closest(".edit-plan");
+    if (editBtn) {
+      editPlan(editBtn.dataset.date, editBtn.dataset.id);
+      return;
+    }
+
+    const deleteBtn = evt.target.closest(".delete-plan");
+    if (deleteBtn) {
+      const d = deleteBtn.dataset.date;
+      const id = deleteBtn.dataset.id;
+      state.plans[d] = (state.plans[d] || []).filter(p => p.id !== id);
+      if (!state.plans[d].length) delete state.plans[d];
+      save();
+      render();
+    }
+  });
+
+  // 事項：完成範圍
+  el.eventList.addEventListener("change", (evt) => {
+    const box = evt.target.closest(".scope-toggle");
+    if (!box) return;
+
+    const e = state.events.find(x => x.id === box.dataset.eventId);
+    const s = e && e.scopes.find(x => x.id === box.dataset.scopeId);
+    if (!s) return;
+
+    s.done = box.checked;
+    save();
+    render();
+  });
+
+  // 事項：修改／刪除
+  el.eventList.addEventListener("click", (evt) => {
+    const editBtn = evt.target.closest(".edit-event");
+    if (editBtn) {
+      editEvent(editBtn.dataset.id);
+      return;
+    }
+
+    const deleteBtn = evt.target.closest(".delete-event");
+    if (deleteBtn) {
+      const id = deleteBtn.dataset.id;
+
+      if (!window.confirm("確定要刪除這個考試／作業嗎？\\n相關的每日排程也會一起刪除。")) {
+        return;
+      }
+
+      state.events = state.events.filter(e => e.id !== id);
+
+      Object.keys(state.plans).forEach(d => {
+        state.plans[d] = state.plans[d].filter(p => p.eventId !== id);
+        if (!state.plans[d].length) delete state.plans[d];
+      });
+
+      save();
+      render();
+    }
+  });
+
+  // 單日時間修改／刪除
+  el.overrideList.addEventListener("click", (evt) => {
+    const editBtn = evt.target.closest(".edit-override");
+    if (editBtn) {
+      const d = editBtn.dataset.date;
+      const cur = state.overrides[d];
+      if (!cur) return;
+
+      const hText = window.prompt("這一天新的可用時間（小時）", String(cur.hours));
+      if (hText === null) return;
+
+      const h = Number(hText);
+      if (!Number.isFinite(h) || h < 0) {
+        alert("請輸入 0 以上的數字。");
+        return;
+      }
+
+      const note = window.prompt("備註（可留空）", cur.note || "");
+      if (note === null) return;
+
+      cur.hours = h;
+      cur.note = note.trim();
+      save();
+      render();
+      return;
+    }
+
+    const deleteBtn = evt.target.closest(".delete-override");
+    if (deleteBtn) {
+      delete state.overrides[deleteBtn.dataset.date];
+      save();
+      render();
+    }
+  });
+
+  // 月曆
+  el.prev.addEventListener("click", () => {
+    view.setMonth(view.getMonth()-1);
+    render();
+  });
+
+  el.next.addEventListener("click", () => {
+    view.setMonth(view.getMonth()+1);
+    render();
+  });
+
+  el.today.addEventListener("click", () => {
+    view = new Date();
+    view.setDate(1);
+    render();
+  });
+
+  // 示範
+  el.demo.addEventListener("click", () => {
+    const t = new Date();
+
+    const e1 = {
+      id:uid(),
+      type:"exam",
+      name:"數統期中考",
+      date:dateKey(addDays(t,10)),
+      importance:"high",
+      difficulty:"hard",
+      scopes:["上課內容","上次期中考內容","上學期數統一複習"]
+        .map(text => ({id:uid(), text, done:false}))
+    };
+
+    const e2 = {
+      id:uid(),
+      type:"homework",
+      name:"統計作業",
+      date:dateKey(addDays(t,5)),
+      importance:"medium",
+      difficulty:"normal",
+      scopes:["完成題目","檢查答案"]
+        .map(text => ({id:uid(), text, done:false}))
+    };
+
+    state.events = [e1,e2];
+    state.plans = {};
+
+    const d1 = dateKey(addDays(t,1));
+    const d2 = dateKey(addDays(t,2));
+
+    state.plans[d1] = [
+      {id:uid(), eventId:e1.id, hours:1, note:"上課內容"},
+      {id:uid(), eventId:e2.id, hours:1, note:"完成題目"}
+    ];
+
+    state.plans[d2] = [
+      {id:uid(), eventId:e1.id, hours:2, note:"上次期中考內容"}
+    ];
+
+    save();
+    render();
+  });
+
+  // 清除全部
+  el.clear.addEventListener("click", () => {
+    if (!window.confirm("確定清除全部資料嗎？")) return;
+    state = clone(base);
+    save();
+    render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
