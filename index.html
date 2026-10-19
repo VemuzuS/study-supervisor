@@ -189,6 +189,36 @@ button{border:0;border-radius:8px;padding:9px 12px;font-weight:700;cursor:pointe
     state = clone(base);
   }
 
+  // 修正舊版本把多行範圍存成同一項的資料。
+  let migratedOldScopes = false;
+  state.events.forEach(event => {
+    const repaired = [];
+    (event.scopes || []).forEach(scope => {
+      const parts = String(scope.text || "")
+        .split(/\r?\n/)
+        .map(x => x.trim())
+        .filter(Boolean);
+
+      if (parts.length > 1) {
+        migratedOldScopes = true;
+        parts.forEach(text => {
+          repaired.push({
+            id: uid(),
+            text,
+            done: Boolean(scope.done)
+          });
+        });
+      } else {
+        repaired.push(scope);
+      }
+    });
+    event.scopes = repaired;
+  });
+
+  if (migratedOldScopes) {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  }
+
   let view = new Date();
   view.setDate(1);
 
@@ -581,7 +611,7 @@ button{border:0;border-radius:8px;padding:9px 12px;font-weight:700;cursor:pointe
 
   // 新增考試／作業
   el.addEvent.addEventListener("click", () => {
-    const lines = el.scopes.value.split("\\n").map(x => x.trim()).filter(Boolean);
+    const lines = el.scopes.value.split("\n").map(x => x.trim()).filter(Boolean);
 
     if (!el.ename.value.trim() || !el.edate.value) {
       alert("請填名稱和日期。");
